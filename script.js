@@ -3,7 +3,6 @@
 class Ball {
     constructor(canvas, x = null, y = null) {
         this.canvas = canvas;
-        // we treat ball positions in CSS pixels (clientWidth/clientHeight)
         this.ctx = canvas.getContext("2d");
 
         this.radius = Math.random() * 15 + 10;
@@ -21,14 +20,13 @@ class Ball {
     }
 
     draw() {
-        // drawing in CSS-pixel coordinates works because ctx is transformed in resizeCanvas()
         this.ctx.beginPath();
         this.ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         this.ctx.fillStyle = this.color;
         this.ctx.shadowBlur = 20;
         this.ctx.shadowColor = this.color;
         this.ctx.fill();
-        this.ctx.shadowBlur = 0; // reset to be safe
+        this.ctx.shadowBlur = 0;
     }
 
     update() {
@@ -38,7 +36,6 @@ class Ball {
         const cw = this.canvas.clientWidth;
         const ch = this.canvas.clientHeight;
 
-        // Bounce Left/Right (CSS pixel bounds)
         if (this.x + this.radius > cw) {
             this.x = cw - this.radius;
             this.speedX *= -1;
@@ -47,7 +44,6 @@ class Ball {
             this.speedX *= -1;
         }
 
-        // Bounce Top/Bottom (CSS pixel bounds)
         if (this.y + this.radius > ch) {
             this.y = ch - this.radius;
             this.speedY *= -1;
@@ -57,7 +53,6 @@ class Ball {
         }
     }
 
-    // ensure ball inside CSS bounds (used after resize)
     clampToBounds() {
         const cw = this.canvas.clientWidth;
         const ch = this.canvas.clientHeight;
@@ -67,7 +62,6 @@ class Ball {
     }
 }
 
-// MovingBall with tiny acceleration
 class MovingBall extends Ball {
     constructor(canvas, x = null, y = null) {
         super(canvas, x, y);
@@ -89,66 +83,97 @@ class Game {
 
         this.balls = [];
 
-        // initial setup and resize
+        this.addBtn = document.getElementById("addBallBtn");
+        this.clearBtn = document.getElementById("clearBtn");
+        this.gameOverBox = document.getElementById("gameOverBox");
+        this.restartBtn = document.getElementById("restartBtn");
+
         this.resizeCanvas();
-        // debounce resize a little to avoid thrash on mobile
+
         let rTO;
         window.addEventListener("resize", () => {
             clearTimeout(rTO);
             rTO = setTimeout(() => {
                 this.resizeCanvas();
-                // clamp existing balls so none are off-screen
                 this.balls.forEach(b => b.clampToBounds());
             }, 80);
         });
 
-        document.getElementById("addBallBtn").addEventListener("click", () => this.addRandomBall());
-        document.getElementById("clearBtn").addEventListener("click", () => this.clearBalls());
+        this.addBtn.addEventListener("click", () => this.addRandomBall());
+        this.clearBtn.addEventListener("click", () => this.clearBalls());
+        this.restartBtn.addEventListener("click", () => this.restartGame());
 
-        // click to add ball (touch-friendly)
         this.canvas.addEventListener("click", (e) => this.addBallOnClick(e));
         this.canvas.addEventListener("touchstart", (e) => {
-            // treat first touch as click
             if (e.touches && e.touches[0]) {
                 this.addBallOnTouch(e.touches[0]);
             }
-        }, {passive: true});
+        }, { passive: true });
+
+        // 💥 add default 20 balls
+        for (let i = 0; i < 20; i++) this.addRandomBall();
 
         this.loop();
     }
 
-    // Make canvas backing store match CSS size * devicePixelRatio
     resizeCanvas() {
         const dpr = Math.max(window.devicePixelRatio || 1, 1);
         const cssWidth = this.canvas.clientWidth;
         const cssHeight = this.canvas.clientHeight;
 
-        // set the canvas internal pixel size to match device pixels
         this.canvas.width = Math.floor(cssWidth * dpr);
         this.canvas.height = Math.floor(cssHeight * dpr);
 
-        // reset transform and scale so we can continue to use CSS pixel coords
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
-        // (optional) improve sharpness on some devices
-        // this.ctx.imageSmoothingEnabled = true;
+    // 🔥 GAME OVER CHECK
+    checkGameOver() {
+        if (this.balls.length >= 200) {
+            this.disableButtons();
+            this.gameOverBox.classList.remove("hidden");
+            return true;
+        }
+        return false;
+    }
+
+    disableButtons() {
+        this.addBtn.disabled = true;
+        this.clearBtn.disabled = true;
+
+        this.addBtn.style.opacity = "0.4";
+        this.clearBtn.style.opacity = "0.4";
+        this.addBtn.style.cursor = "not-allowed";
+        this.clearBtn.style.cursor = "not-allowed";
+    }
+
+    enableButtons() {
+        this.addBtn.disabled = false;
+        this.clearBtn.disabled = false;
+
+        this.addBtn.style.opacity = "1";
+        this.clearBtn.style.opacity = "1";
+        this.addBtn.style.cursor = "pointer";
+        this.clearBtn.style.cursor = "pointer";
     }
 
     addRandomBall() {
+        if (this.checkGameOver()) return;
+
         const ball = Math.random() < 0.5
             ? new Ball(this.canvas)
             : new MovingBall(this.canvas);
 
-        // ensure inside current CSS bounds (ball constructor already uses clientWidth/Height)
         ball.clampToBounds();
-
         this.balls.push(ball);
         this.updateBallCount();
     }
 
     addBallOnClick(e) {
+        if (this.checkGameOver()) return;
+
         const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left; // CSS pixels
+        const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
         const ball = Math.random() < 0.5
@@ -161,27 +186,42 @@ class Game {
     }
 
     addBallOnTouch(touch) {
+        if (this.checkGameOver()) return;
+
         const rect = this.canvas.getBoundingClientRect();
         const x = touch.clientX - rect.left;
         const y = touch.clientY - rect.top;
 
         const ball = new MovingBall(this.canvas, x, y);
+
         ball.clampToBounds();
         this.balls.push(ball);
         this.updateBallCount();
     }
 
     clearBalls() {
+        if (this.clearBtn.disabled) return; // prevent clearing at 200
+
         this.balls = [];
         this.updateBallCount();
     }
 
+    restartGame() {
+        this.balls = [];
+        this.enableButtons();
+        this.gameOverBox.classList.add("hidden");
+
+        for (let i = 0; i < 20; i++) this.addRandomBall();
+
+        this.updateBallCount();
+    }
+
     updateBallCount() {
-        document.getElementById("ballCount").textContent = `Balls: ${this.balls.length}`;
+        document.getElementById("ballCount").textContent =
+            `Balls: ${this.balls.length}`;
     }
 
     clear() {
-        // clear the CSS-sized area; ctx has been scaled so this works in CSS px
         this.ctx.clearRect(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
     }
 
