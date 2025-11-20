@@ -61,3 +61,26 @@ canvas {
     background: linear-gradient(145deg, #181830, #10101f);
     border-radius: 12px;
 }
+
+/* Game Over Box */
+.game-over {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #1a1a2d;
+    padding: 25px 35px;
+    border-radius: 15px;
+    text-align: center;
+    box-shadow: 0 0 25px rgba(255, 0, 80, 0.5);
+    z-index: 9999;
+}
+
+.hidden {
+    display: none;
+}
+
+#restartBtn {
+    background: linear-gradient(135deg, #6dff8b, #c1ffb0);
+    margin-top: 12px;
+}
